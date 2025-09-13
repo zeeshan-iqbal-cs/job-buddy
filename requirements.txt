@@ -1,0 +1,14 @@
+# Web API
+fastapi==0.112.2
+uvicorn[standard]==0.30.6
+python-multipart==0.0.9  # enables file uploads (FormData)
+
+# LLM client
+openai>=1.40.0,<2  # Responses API + web_search_preview support
+
+# PDF utilities
+fpdf2==2.7.9       # render PDFs from text
+PyPDF2==3.0.1      # extract text from uploaded resume PDFs
+
+# Optional (handy if you later serve the SPA from FastAPI)
+aiofiles==24.1.0
