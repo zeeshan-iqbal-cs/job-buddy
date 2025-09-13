@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Job Buddy — Application History</title>
+  <!-- Markdown + Sanitizer -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+  <style>
+    :root{
+      --radius: 12px; --ok:#2ecc71; --err:#ff6b6b;
+      /* Light (Beach) */
+      --bg: #f7f9fb; --surface:#ffffff; --ink:#0e1726; --muted:#556070;
+      --border:#e5e9f2; --accent:#09c2d4; --accent-2:#ffd4a8;
+      --chip-bg:#ecfbff; --chip-ink:#07333a;
+    }
+    :root[data-theme="dark"]{
+      /* Deep Ocean */
+      --bg:#0f1115; --surface:#161a22; --ink:#e8eaf0; --muted:#98a1b2;
+      --border:#242b3a; --accent:#15d3ef; --accent-2:#ffc690;
+      --chip-bg:#0f1827; --chip-ink:#cfe8ff;
+    }
+    *{ box-sizing:border-box }
+    body{ margin:0; background:var(--bg); color:var(--ink); font-family:Inter, system-ui, sans-serif; }
+    a{ color:var(--accent); text-decoration:none; }
+    .wrap{ width:min(1600px, 96vw); margin:0 auto; padding:24px; }
+    h1{ margin:0 0 16px 0; }
+    .topnav{ display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; gap:12px; flex-wrap:wrap; }
+    .controls{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    input[type="number"], input[type="text"], input[type="url"], select, textarea{
+      padding:8px 10px; border-radius:10px; border:1px solid var(--border); background:var(--surface); color:var(--ink);
+    }
+    textarea{ width:100%; min-height:44px; resize:vertical }
+    .btn{ padding:8px 12px; border:0; border-radius:10px; background:linear-gradient(135deg, var(--accent), #08a7bb); color:#071219; font-weight:800; cursor:pointer; }
+    .btn.small{ padding:6px 10px; font-weight:700 }
+    .muted{ color:var(--muted) }
+
+    .table-wrap{ overflow-x:auto; border:1px solid var(--border); border-radius:12px }
+    table{ width:100%; border-collapse:collapse }
+    thead th{ position:sticky; top:0; z-index:1; background:var(--surface) }
+    th, td{ border:1px solid var(--border); padding:10px; vertical-align:top; text-align:left }
+    tr:nth-child(even) td{ background:rgba(0,0,0,.04) }
+    [data-theme="dark"] tr:nth-child(even) td{ background:#1a2130 }
+
+    .actions{ display:flex; gap:8px; align-items:center; flex-wrap:wrap }
+    .msg{ margin-top:6px; font-size:.9rem }
+    .ok{ color:var(--ok) } .err{ color:var(--err) }
+
+    /* Theme toggle */
+    .theme-toggle{ border:1px solid var(--border); background:var(--surface); color:var(--ink); border-radius:999px; padding:8px 12px; display:inline-flex; align-items:center; gap:8px; cursor:pointer; }
+
+    /* Drawer (overlay; does not shrink table) */
+    /* keep drawer above everything */
+    /* Drawer (overlay; sits above table header) */
+    .drawer{
+    position: fixed;
+    inset: 0;
+    z-index: 9999;  
+    display: none;     
+    }
+    .drawer.open{ display: block; }
+
+    .backdrop{
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,.45);
+    z-index: 0;
+    }
+    .panel{
+    position: absolute; right: 0; top: 0; height: 100%;
+    z-index: 1;
+    width: clamp(640px, 56vw, 1000px); max-width: 96vw;
+    background: var(--surface); border-left: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    }
+
+    .ph{ padding:14px 16px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border) }
+    .ptitle{ font-weight:800; display:flex; align-items:center; gap:8px }
+    .pill{ display:inline-block; padding:3px 8px; border:1px solid var(--border); border-radius:999px; background:var(--chip-bg); color:var(--chip-ink); font-size:.85rem }
+    .pbody{ display:flex; gap:12px; height:100%; min-height:0 }
+    .tabs{ width:240px; border-right:1px solid var(--border); padding:12px; overflow:auto }
+    .tabs button{ display:block; width:100%; text-align:left; padding:10px; border:1px solid var(--border); background:var(--bg); color:var(--ink); border-radius:10px; margin-bottom:8px; cursor:pointer }
+    .tabs button.active{ background:rgba(0,0,0,.07); border-color:#2a4358 }
+    [data-theme="dark"] .tabs button{ background:#101620 }
+    [data-theme="dark"] .tabs button.active{ background:#142235; border-color:#214056 }
+    .content{ flex:1; overflow:auto; padding:18px }
+    .md{ line-height:1.6 }
+    .close{ background:#283244; color:#fff; border:0; padding:6px 10px; border-radius:8px; cursor:pointer }
+    .empty{ color:var(--muted); font-style:italic }
+
+    /* Drawer width: responsive, never exceeds viewport */
+    .panel { width: clamp(640px, 56vw, 1000px); max-width: 96vw; }
+
+    /* Markdown: never overflow horizontally */
+    .content .md { overflow-wrap:anywhere; word-break:break-word; }
+    .content pre,
+    .content code,
+    .content blockquote { white-space:pre-wrap; max-width:100%; overflow:auto; }
+    .content table { display:block; max-width:100%; overflow:auto; }
+    .content img { max-width:100%; height:auto; }
+
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topnav">
+    <h1>Application History</h1>
+    <div class="controls">
+      <label class="muted">Limit</label>
+      <input id="limit" type="number" min="1" max="500" value="50"/>
+      <input id="filter" type="text" placeholder="Filter company / text…"/>
+      <button id="reload" class="btn small">Reload</button>
+      <a href="/">Back</a>
+      <button id="themeBtn" class="theme-toggle" type="button"><span id="themeIcon">🌙</span> <span id="themeLabel">Dark</span></button>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table id="tbl">
+      <thead>
+        <tr>
+          <th style="width:56px">#</th>
+          <th style="width:170px">Date</th>
+          <th style="width:320px">Company</th>
+          <th style="width:150px">Platform</th>
+          <th style="width:260px">Application URL</th>
+          <th style="width:150px">Status</th>
+          <th style="width:100px">Applied</th>
+          <th>Notes</th>
+          <th style="width:220px">Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Right-hand drawer for Markdown previews -->
+<div id="drawer" class="drawer" aria-hidden="true">
+  <div class="backdrop"></div>
+  <div class="panel">
+    <div class="ph">
+      <div class="ptitle" id="drawerTitle">Preview</div>
+      <button class="close" id="closeDrawer">Close</button>
+    </div>
+    <div class="pbody">
+      <div class="tabs" id="tabs"></div>
+      <div class="content">
+        <div class="md" id="mdContent">Select a section.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- Theme ---------- */
+const root = document.documentElement;
+const themeBtn = document.getElementById('themeBtn');
+const themeIcon = document.getElementById('themeIcon');
+const themeLabel = document.getElementById('themeLabel');
+function applyTheme(mode){
+  root.setAttribute('data-theme', mode);
+  localStorage.setItem('job-buddy-theme', mode);
+  themeIcon.textContent = (mode === 'dark' ? '🌙' : '🌞');
+  themeLabel.textContent = (mode === 'dark' ? 'Dark' : 'Light');
+}
+applyTheme(localStorage.getItem('job-buddy-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+themeBtn.addEventListener('click', ()=> applyTheme(root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'));
+
+/* ---------- Data helpers ---------- */
+const STATUS_OPTS = ["Draft","Applied","Interviewing","Offer","Rejected","On Hold"];
+let cachedRows = [];
+function normText(t){
+  if(!t) return "";
+  // Convert literal \r\n / \n sequences from logs to actual newlines
+  return t.replace(/\r\n/g, "\n").replace(/\\r\\n/g, "\n").replace(/\\n/g, "\n");
+}
+function mdHTML(text){
+  const html = marked.parse(normText(text || ""));
+  return DOMPurify.sanitize(html);
+}
+
+/* ---------- API ---------- */
+async function fetchHistory(limit=50){
+  const res = await fetch(`/api/history?limit=${encodeURIComponent(limit)}&offset=0`);
+  if(!res.ok) throw new Error('Failed to load history');
+  return await res.json();
+}
+async function fetchDetail(idx){
+  const res = await fetch(`/api/history/detail?index=${encodeURIComponent(idx)}`);
+  if(!res.ok) throw new Error('Failed to load detail');
+  return await res.json();
+}
+async function saveRow(idx, payload){
+  const res = await fetch(`/api/history/update`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({index: idx, ...payload})
+  });
+  if(!res.ok){
+    const j = await res.json().catch(()=>({}));
+    throw new Error(j.error || 'Failed to save');
+  }
+  return await res.json();
+}
+
+/* ---------- Table ---------- */
+function renderTable(data){
+  cachedRows = data.items || [];
+  const tbody = document.querySelector('#tbl tbody');
+  const q = (document.getElementById('filter').value || '').toLowerCase().trim();
+  const rows = !q ? cachedRows : cachedRows.filter(r =>
+    (r.company_name||"").toLowerCase().includes(q) ||
+    (r.job_description||"").toLowerCase().includes(q) ||
+    (r.tailored_resume_text||"").toLowerCase().includes(q) ||
+    (r.cover_letter_text||"").toLowerCase().includes(q)
+  );
+
+  tbody.innerHTML = "";
+  rows.forEach((item, i) => {
+    const tr = document.createElement('tr');
+
+    const plat = input('text', item.platform||"");
+    const url = input('url', item.application_url||"", 'https://…');
+    const sel = select(STATUS_OPTS, item.status||"Draft");
+    const chk = input('checkbox'); chk.checked = !!item.applied;
+    const notes = document.createElement('textarea'); notes.value = item.notes || "";
+
+    const viewBtn = button('Preview');
+    const saveBtn = button('Save');
+    const msg = document.createElement('div'); msg.className = 'msg muted';
+
+    tr.innerHTML = `
+      <td>${i+1}</td>
+      <td>${item.timestamp || ""}</td>
+      <td>${escapeHtml(item.company_name || "-")}</td>
+      <td></td><td></td><td></td><td style="text-align:center"></td>
+      <td></td>
+      <td></td>
+    `;
+    tr.children[3].appendChild(plat);
+    tr.children[4].appendChild(url);
+    tr.children[5].appendChild(sel);
+    tr.children[6].appendChild(chk);
+    tr.children[7].appendChild(notes);
+
+    const act = document.createElement('div'); act.className = 'actions';
+    act.appendChild(viewBtn); act.appendChild(saveBtn);
+    tr.children[8].appendChild(act); tr.children[8].appendChild(msg);
+    tbody.appendChild(tr);
+
+    viewBtn.addEventListener('click', () => openDrawer(item));
+    saveBtn.addEventListener('click', async ()=>{
+      msg.className = 'msg muted'; msg.textContent = 'Saving…';
+      try {
+        await saveRow(item.idx, {
+          platform: plat.value.trim(),
+          application_url: url.value.trim(),
+          status: sel.value,
+          applied: chk.checked,
+          notes: notes.value
+        });
+        msg.className = 'msg ok'; msg.textContent = 'Saved.';
+      } catch(e){ msg.className = 'msg err'; msg.textContent = e.message || 'Failed'; }
+    });
+  });
+}
+function input(type, value="", placeholder=""){
+  const el = document.createElement('input');
+  el.type = type;
+  if(type !== 'checkbox'){ el.value = value; }
+  if(placeholder) el.placeholder = placeholder;
+  el.style.width = '100%';
+  return el;
+}
+function select(options, val){
+  const el = document.createElement('select');
+  options.forEach(o=>{ const op = document.createElement('option'); op.value=o; op.textContent=o; if(val===o) op.selected=true; el.appendChild(op); });
+  el.style.width='100%';
+  return el;
+}
+function button(label){ const b=document.createElement('button'); b.className='btn small'; b.textContent=label; return b; }
+function escapeHtml(s){ return (s||"").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function lockBodyScroll(lock){
+  const sbw = window.innerWidth - document.documentElement.clientWidth;
+  document.documentElement.style.setProperty('--scrollbar-w', sbw + 'px');
+  document.body.classList.toggle('lock-scroll', lock);
+}
+
+/* ---------- Drawer / Tabs ---------- */
+function openDrawer(item){
+  lockBodyScroll(true);
+  const drawer = document.getElementById('drawer');
+  document.getElementById('drawerTitle').innerHTML = `
+    <span>${escapeHtml(item.company_name || "(unknown)")}</span>
+    <span class="pill">${escapeHtml(item.timestamp||"")}</span>
+  `;
+
+  const tabsEl = document.getElementById('tabs');
+  tabsEl.innerHTML = "";
+
+  const sections = [
+    ["job", "Job Description", item.job_description],
+    ["about", "About Me", item.about_me_or_prefs],
+    ["resume", "Resume Excerpt", item.resume_text_excerpt],
+    ["map", "Mapping", item.mapping_text],
+    ["resumeTailor", "Tailored Resume", item.tailored_resume_text],
+    ["cover", "Cover Letter", item.cover_letter_text]
+  ];
+  sections.forEach(([key, label, text], idx) => {
+    const btn = document.createElement('button');
+    btn.textContent = label;
+    btn.dataset.key = key;
+    if(idx===0) btn.classList.add('active');
+    btn.addEventListener('click', () => selectTab(key, text));
+    tabsEl.appendChild(btn);
+  });
+
+  // Evidence: only add a live tab if there are links
+  const links = item.evidence_links || [];
+  const evBtn = document.createElement('button');
+  evBtn.textContent = `Evidence (${links.length})`;
+  if(links.length === 0){
+    evBtn.disabled = true;
+    evBtn.title = "No evidence captured (web research returned none).";
+  } else {
+    evBtn.addEventListener('click', () => {
+      const bullets = links.map(u => `- <a href="${u}" target="_blank" rel="noopener">${u}</a>`).join("\n");
+      selectTab('evidence', bullets);
+    });
+  }
+  tabsEl.appendChild(evBtn);
+
+  selectTab(sections[0][0], sections[0][2]);  // initial
+  drawer.classList.add('open');
+  drawer.setAttribute('aria-hidden','false');
+}
+function selectTab(key, text){
+  [...document.querySelectorAll('.tabs button')].forEach(b=>b.classList.toggle('active', b.dataset.key===key));
+  const content = document.getElementById('mdContent');
+  const html = mdHTML(text);
+  content.innerHTML = html && html.trim() ? html : `<div class="empty">(empty)</div>`;
+}
+document.getElementById('closeDrawer').addEventListener('click', closeDrawer);
+document.querySelector('#drawer .backdrop').addEventListener('click', closeDrawer);
+
+function closeDrawer(){
+  const drawer = document.getElementById('drawer');
+  drawer.classList.remove('open');
+  drawer.setAttribute('aria-hidden','true');
+  lockBodyScroll(false); 
+}
+
+/* ---------- Load ---------- */
+async function reload(){
+  const limit = parseInt(document.getElementById('limit').value || "50", 10);
+  const data = await fetchHistory(limit);
+  renderTable(data);
+}
+document.getElementById('reload').addEventListener('click', reload);
+document.getElementById('filter').addEventListener('input', () => renderTable({items: cachedRows}));
+reload();
+</script>
+</body>
+</html>

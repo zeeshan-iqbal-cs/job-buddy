@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Job Buddy — Job Application Assistant</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    :root{ --radius:12px; --border:#2d3748; --accent:#15d3ef; --muted:#9aa0aa; --bg:#0f1115; --surface:#161a22; --ink:#e8eaf0; }
+    body{ margin:0; background:var(--bg); color:var(--ink); font-family:Inter, system-ui, sans-serif; }
+    .wrap{ max-width:980px; margin:0 auto; padding:24px; }
+    header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
+    .brand{ display:flex; gap:12px; align-items:center; }
+    .logo{ width:40px; height:40px; border-radius:10px; background:linear-gradient(135deg, #12bee0, #ffd3a0); display:grid; place-items:center; font-weight:800; color:#071219; }
+    .nav a{ color:var(--accent); text-decoration:none; margin-left:16px; }
+    details{ border:1px solid var(--border); border-radius:var(--radius); margin-bottom:16px; overflow:hidden; }
+    summary{ cursor:pointer; padding:12px 16px; font-weight:700; background:var(--surface); }
+    .card{ padding:16px; }
+    label{ display:block; margin:10px 0 6px; color:var(--muted); }
+    input, textarea{ width:100%; padding:10px; border-radius:8px; border:1px solid var(--border); background:var(--surface); color:var(--ink); }
+    textarea{ min-height:120px; resize:vertical; }
+    button{ padding:12px 18px; border:0; border-radius:10px; background:var(--accent); color:#001018; font-weight:800; cursor:pointer; }
+    button:disabled{ opacity:.55; cursor:wait; }
+    .status{ margin-top:8px; color:var(--muted); }
+    .panel{ border:1px solid var(--border); border-radius:var(--radius); margin:12px 0; overflow:hidden; }
+    .panel .h{ padding:12px 16px; background:var(--surface); font-weight:700; cursor:pointer; }
+    .panel .b{ display:none; padding:16px; background:#1b2230; }
+    .panel.open .b{ display:block; }
+    .md{ line-height:1.55; }
+    .md h1,.md h2,.md h3{ margin-top:1.1em; }
+    .footer{ text-align:center; color:#808697; margin-top:24px; font-size:.9rem; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="logo">M</div>
+      <div>
+        <div style="font-weight:800">Job Buddy</div>
+        <div style="color:#97a0ad; font-size:.95rem;">Generate tailored resumes & cover letters from a single page.</div>
+      </div>
+    </div>
+    <div class="nav">
+      <a href="/static/history.html">History</a>
+    </div>
+  </header>
+
+  <!-- Collapsible input area -->
+  <details id="inputs" open>
+    <summary>Application Inputs</summary>
+    <div class="card">
+      <form id="appForm">
+        <label>Upload Resume (PDF/TXT)</label>
+        <input id="resumeFile" type="file" accept=".pdf,.txt" required/>
+        <label>Company website (optional)</label>
+        <input id="companyUrl" type="url" placeholder="https://company.com"/>
+        <label>Job Description</label>
+        <textarea id="jobDescription" required></textarea>
+        <label>About you (optional)</label>
+        <textarea id="aboutMe" placeholder="Context not on resume (top strengths, preferences)…"></textarea>
+        <button id="generateBtn" type="submit">Generate</button>
+        <div id="status" class="status"></div>
+      </form>
+    </div>
+  </details>
+
+  <!-- Results area -->
+  <div id="resultsWrap" style="display:none">
+    <div id="loading" class="status">⏳ Processing…</div>
+
+    <div id="results">
+      <div class="panel">
+        <div class="h">Requirements Extracted</div>
+        <div class="b"><div id="requirements" class="md"></div></div>
+      </div>
+      <div class="panel">
+        <div class="h">Resume ↔ JD Mapping</div>
+        <div class="b"><div id="mapping" class="md"></div></div>
+      </div>
+      <div class="panel">
+        <div class="h">Company Profile</div>
+        <div class="b"><div id="company" class="md"></div></div>
+      </div>
+      <div class="panel">
+        <div class="h">Tailored Resume (text draft)</div>
+        <div class="b"><div id="resumeOut" class="md"></div></div>
+      </div>
+      <div class="panel">
+        <div class="h">Cover Letter (text draft)</div>
+        <div class="b"><div id="coverOut" class="md"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">© <span id="year"></span> Job Buddy</div>
+</div>
+
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+const form = document.getElementById('appForm');
+const inputs = document.getElementById('inputs');
+const statusEl = document.getElementById('status');
+const resultsWrap = document.getElementById('resultsWrap');
+const loadingEl = document.getElementById('loading');
+const results = document.getElementById('results');
+
+// markdown render
+function renderMD(el, text){ el.innerHTML = marked.parse(text || ""); }
+
+// expand/collapse panels
+document.addEventListener('click', (e) => {
+  const h = e.target.closest('.panel .h');
+  if(!h) return;
+  h.parentElement.classList.toggle('open');
+});
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  statusEl.textContent = "";
+  inputs.open = false;
+  resultsWrap.style.display = 'block';
+  loadingEl.style.display = 'block';
+  results.style.display = 'none';
+
+  const fd = new FormData();
+  fd.append('resume_file', document.getElementById('resumeFile').files[0]);
+  fd.append('company_url', document.getElementById('companyUrl').value.trim());
+  fd.append('job_description', document.getElementById('jobDescription').value.trim());
+  fd.append('about_me', document.getElementById('aboutMe').value.trim());
+
+  try {
+    const res = await fetch('/api/generate', { method: 'POST', body: fd });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+
+    renderMD(document.getElementById('requirements'), data.requirements_text);
+    renderMD(document.getElementById('mapping'), data.mapping_text);
+    renderMD(document.getElementById('company'), data.company_profile_text);
+    renderMD(document.getElementById('resumeOut'), data.tailored_resume_text);
+    renderMD(document.getElementById('coverOut'), data.cover_letter_text);
+
+    loadingEl.style.display = 'none';
+    results.style.display = 'block';
+    // open the first panel
+    const first = document.querySelector('.panel'); if(first) first.classList.add('open');
+  } catch (err) {
+    statusEl.textContent = err.message || 'Something went wrong.';
+    loadingEl.style.display = 'none';
+  }
+});
+</script>
+</body>
+</html>
